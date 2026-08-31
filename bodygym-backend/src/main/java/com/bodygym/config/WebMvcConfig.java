@@ -27,12 +27,14 @@ public class WebMvcConfig implements WebMvcConfigurer {
         String[] candidateImagePaths = {
             "file:" + userDir + "/../exercises-dataset/images/",
             "file:" + userDir + "/exercises-dataset/images/",
+            "file:/app/exercises-dataset/images/",
             "file:///C:/Users/XUAN%20SON/Desktop/Xuan%20Son%20Version/BodyGym/exercises-dataset/images/"
         };
         
         String[] candidateVideoPaths = {
             "file:" + userDir + "/../exercises-dataset/videos/",
             "file:" + userDir + "/exercises-dataset/videos/",
+            "file:/app/exercises-dataset/videos/",
             "file:///C:/Users/XUAN%20SON/Desktop/Xuan%20Son%20Version/BodyGym/exercises-dataset/videos/"
         };
 
