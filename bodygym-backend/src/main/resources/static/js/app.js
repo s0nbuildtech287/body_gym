@@ -255,7 +255,7 @@ async function loadExercises(reset = false) {
     container.innerHTML = `
       <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--text-muted);">
         <i data-lucide="loader" style="animation: spin 1s linear infinite; width: 32px; height: 32px;"></i>
-        <p style="margin-top: 10px;">Đang tải danh sách bài tập từ Spring Boot...</p>
+        <p style="margin-top: 10px;">Đang tải danh sách bài tập...</p>
       </div>
     `;
     initIcons();
@@ -319,7 +319,7 @@ async function loadExercises(reset = false) {
       container.innerHTML = `
         <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: var(--danger);">
           <i data-lucide="alert-circle" style="width: 40px; height: 40px; margin-bottom: 8px;"></i>
-          <p>Lỗi kết nối máy chủ Spring Boot. Vui lòng thử lại.</p>
+          <p>Lỗi kết nối máy chủ. Vui lòng thử lại.</p>
         </div>
       `;
       initIcons();
