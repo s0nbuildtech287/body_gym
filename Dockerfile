@@ -40,7 +40,7 @@ COPY exercises-dataset /app/exercises-dataset
 
 # Environment variables
 ENV SERVER_PORT=8080
-ENV JAVA_OPTS="-Xms256m -Xmx512m -Djava.security.egd=file:/dev/./urandom"
+ENV JAVA_OPTS="-Xms128m -Xmx384m -XX:+UseG1GC -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom"
 
 # Launch Spring Boot
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Dserver.port=${PORT:-8080} -jar app.jar"]

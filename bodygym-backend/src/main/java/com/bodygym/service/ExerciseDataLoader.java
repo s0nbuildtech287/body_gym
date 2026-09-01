@@ -40,6 +40,7 @@ public class ExerciseDataLoader implements CommandLineRunner {
         String[] possiblePaths = {
             "../exercises-dataset/data/exercises.json",
             "exercises-dataset/data/exercises.json",
+            "/app/exercises-dataset/data/exercises.json",
             "C:/Users/XUAN SON/Desktop/Xuan Son Version/BodyGym/exercises-dataset/data/exercises.json"
         };
 
