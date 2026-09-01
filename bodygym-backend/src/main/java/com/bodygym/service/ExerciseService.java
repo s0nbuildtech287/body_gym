@@ -19,11 +19,17 @@ public class ExerciseService {
 
     public Page<Exercise> getExercises(String query, String bodyPart, String equipment, String target, int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by("name").ascending());
+        
+        String cleanQuery = (query != null && !query.trim().isEmpty()) ? query.trim().toLowerCase() : null;
+        String cleanBodyPart = (bodyPart != null && !bodyPart.trim().isEmpty() && !bodyPart.equalsIgnoreCase("all")) ? bodyPart.trim().toLowerCase() : null;
+        String cleanEquipment = (equipment != null && !equipment.trim().isEmpty() && !equipment.equalsIgnoreCase("all")) ? equipment.trim().toLowerCase() : null;
+        String cleanTarget = (target != null && !target.trim().isEmpty() && !target.equalsIgnoreCase("all")) ? target.trim().toLowerCase() : null;
+
         return exerciseRepository.filterExercises(
-                (query != null && !query.trim().isEmpty()) ? query.trim() : null,
-                bodyPart,
-                equipment,
-                target,
+                cleanQuery,
+                cleanBodyPart,
+                cleanEquipment,
+                cleanTarget,
                 pageable
         );
     }

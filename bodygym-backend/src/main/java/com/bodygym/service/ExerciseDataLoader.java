@@ -36,25 +36,31 @@ public class ExerciseDataLoader implements CommandLineRunner {
             return;
         }
 
-        // Try several candidate paths for exercises.json
+        String userDir = System.getProperty("user.dir", ".");
         String[] possiblePaths = {
             "../exercises-dataset/data/exercises.json",
             "exercises-dataset/data/exercises.json",
             "/app/exercises-dataset/data/exercises.json",
+            userDir + "/../exercises-dataset/data/exercises.json",
+            userDir + "/exercises-dataset/data/exercises.json",
+            userDir + "/data/exercises.json",
+            "data/exercises.json",
             "C:/Users/XUAN SON/Desktop/Xuan Son Version/BodyGym/exercises-dataset/data/exercises.json"
         };
 
         File targetFile = null;
         for (String path : possiblePaths) {
-            File f = new File(path);
-            if (f.exists() && f.isFile()) {
-                targetFile = f;
-                break;
-            }
+            try {
+                File f = new File(path);
+                if (f.exists() && f.isFile() && f.length() > 0) {
+                    targetFile = f;
+                    break;
+                }
+            } catch (Exception ignored) {}
         }
 
         if (targetFile == null) {
-            log.warn("Could not find exercises.json in candidate paths!");
+            log.warn("Could not find exercises.json in candidate paths! Current user.dir: {}", userDir);
             return;
         }
 

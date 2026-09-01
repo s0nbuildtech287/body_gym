@@ -14,10 +14,10 @@ import java.util.List;
 public interface ExerciseRepository extends JpaRepository<Exercise, String> {
 
     @Query("SELECT e FROM Exercise e WHERE " +
-           "(:query IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(e.target) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(e.muscleGroup) LIKE LOWER(CONCAT('%', :query, '%'))) AND " +
-           "(:bodyPart IS NULL OR :bodyPart = '' OR LOWER(e.bodyPart) = LOWER(:bodyPart)) AND " +
-           "(:equipment IS NULL OR :equipment = '' OR LOWER(e.equipment) = LOWER(:equipment)) AND " +
-           "(:target IS NULL OR :target = '' OR LOWER(e.target) = LOWER(:target))")
+           "(:query IS NULL OR LOWER(e.name) LIKE CONCAT('%', :query, '%') OR LOWER(e.target) LIKE CONCAT('%', :query, '%') OR LOWER(e.muscleGroup) LIKE CONCAT('%', :query, '%') OR LOWER(e.bodyPart) LIKE CONCAT('%', :query, '%')) AND " +
+           "(:bodyPart IS NULL OR LOWER(e.bodyPart) LIKE CONCAT('%', :bodyPart, '%')) AND " +
+           "(:equipment IS NULL OR LOWER(e.equipment) LIKE CONCAT('%', :equipment, '%')) AND " +
+           "(:target IS NULL OR LOWER(e.target) LIKE CONCAT('%', :target, '%'))")
     Page<Exercise> filterExercises(
             @Param("query") String query,
             @Param("bodyPart") String bodyPart,

@@ -262,15 +262,20 @@ async function loadExercises(reset = false) {
   }
 
   try {
-    const params = new URLSearchParams({
-      page: appState.exercisePage,
-      size: appState.exercisePageSize,
-      search: appState.searchQuery || '',
-      bodyPart: appState.selectedBodyPart || '',
-      equipment: appState.selectedEquipment || ''
-    });
+    const params = new URLSearchParams();
+    params.append('page', appState.exercisePage);
+    params.append('size', appState.exercisePageSize);
+    if (appState.searchQuery && appState.searchQuery.trim()) {
+      params.append('search', appState.searchQuery.trim());
+    }
+    if (appState.selectedBodyPart && appState.selectedBodyPart.trim() && appState.selectedBodyPart !== 'all') {
+      params.append('bodyPart', appState.selectedBodyPart.trim());
+    }
+    if (appState.selectedEquipment && appState.selectedEquipment.trim() && appState.selectedEquipment !== 'all') {
+      params.append('equipment', appState.selectedEquipment.trim());
+    }
 
-    const res = await fetch(`${API_BASE}/exercises?${params}`);
+    const res = await fetch(`${API_BASE}/exercises?${params.toString()}`);
     if (!res.ok) throw new Error('API Error');
     const data = await res.json();
 
