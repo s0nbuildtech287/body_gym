@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#141B2D" />
+      <stop offset="50%" stop-color="#0E1424" />
+      <stop offset="100%" stop-color="#080C14" />
+    </linearGradient>
+
+    <!-- Brand Flame Gradient -->
+    <linearGradient id="flameGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF9E3D" />
+      <stop offset="45%" stop-color="#F97316" />
+      <stop offset="100%" stop-color="#DC2626" />
+    </linearGradient>
+
+    <!-- Glow Effect -->
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Squircle Base with Border -->
+  <rect x="16" y="16" width="480" height="480" rx="108" ry="108" fill="url(#bgGradient)" stroke="#F97316" stroke-width="12" stroke-opacity="0.35" />
+
+  <!-- Subtle Radial Glow Behind Logo -->
+  <circle cx="256" cy="256" r="160" fill="#F97316" opacity="0.12" filter="url(#glow)" />
+
+  <!-- Dumbbell Icon - High Visibility & Bold Geometry -->
+  <g transform="translate(256, 256) rotate(-45) translate(-256, -256)" filter="url(#glow)">
+    
+    <!-- Central Bar -->
+    <rect x="196" y="240" width="120" height="32" rx="16" fill="#F8FAFC" />
+    
+    <!-- Left Inner Collar -->
+    <rect x="180" y="216" width="22" height="80" rx="10" fill="url(#flameGradient)" />
+    
+    <!-- Left Main Plate -->
+    <rect x="138" y="180" width="34" height="152" rx="14" fill="url(#flameGradient)" />
+    
+    <!-- Left Outer Plate -->
+    <rect x="100" y="200" width="30" height="112" rx="12" fill="url(#flameGradient)" />
+    
+    <!-- Left Tip -->
+    <rect x="76" y="242" width="18" height="28" rx="8" fill="#F8FAFC" opacity="0.9" />
+
+    <!-- Right Inner Collar -->
+    <rect x="310" y="216" width="22" height="80" rx="10" fill="url(#flameGradient)" />
+    
+    <!-- Right Main Plate -->
+    <rect x="340" y="180" width="34" height="152" rx="14" fill="url(#flameGradient)" />
+    
+    <!-- Right Outer Plate -->
+    <rect x="382" y="200" width="30" height="112" rx="12" fill="url(#flameGradient)" />
+    
+    <!-- Right Tip -->
+    <rect x="418" y="242" width="18" height="28" rx="8" fill="#F8FAFC" opacity="0.9" />
+
+    <!-- Grip Highlights / Knurling Lines on Central Bar -->
+    <line x1="236" y1="244" x2="236" y2="268" stroke="#94A3B8" stroke-width="4" stroke-linecap="round" />
+    <line x1="256" y1="244" x2="256" y2="268" stroke="#94A3B8" stroke-width="4" stroke-linecap="round" />
+    <line x1="276" y1="244" x2="276" y2="268" stroke="#94A3B8" stroke-width="4" stroke-linecap="round" />
+  </g>
+</svg>

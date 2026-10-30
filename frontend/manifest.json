@@ -1,0 +1,16 @@
+{
+  "name": "BodyGym - Elite Workout & Fitness Tracker",
+  "short_name": "BodyGym",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090D16",
+  "theme_color": "#F97316",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

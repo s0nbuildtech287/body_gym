@@ -4,6 +4,7 @@
 
 const API_BASE = '/api';
 const SHEET_API_URL = 'https://script.google.com/macros/s/AKfycbyuFmLoeGJKgwjTfTUXevztfeewa-GcdUni7apHKmFdcqpvEy3-GvwO_cF4xQZ2HcVG/exec';
+const EXERCISE_DATA_URL = '/data/exercises.json';
 
 // Safe SVG Placeholder (Dumbbell icon) to prevent image flickering
 const FALLBACK_PLACEHOLDER_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='none' stroke='%23f97316' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6.5 6.5 11 11'/%3E%3Cpath d='m21 21-1-1'/%3E%3Cpath d='m3 3 1 1'/%3E%3Cpath d='m18 22 4-4'/%3E%3Cpath d='m2 6 4-4'/%3E%3Cpath d='m3 10 7-7'/%3E%3Cpath d='m14 21 7-7'/%3E%3C/svg%3E";
@@ -93,13 +94,47 @@ function normalizeWorkout(row) {
   return { ...row, routineName: row.routine_name ?? row.routineName, startedAt: row.started_at ?? row.startedAt, completedAt: row.completed_at ?? row.completedAt, durationSeconds: Number(row.duration_seconds ?? row.durationSeconds ?? 0), totalVolumeKg: Number(row.total_volume_kg ?? row.totalVolumeKg ?? 0), totalSets: Number(row.total_sets ?? row.totalSets ?? 0), totalReps: Number(row.total_reps ?? row.totalReps ?? 0), prCount: Number(row.pr_count ?? row.prCount ?? 0), trainedBodyParts: row.trained_body_parts ?? row.trainedBodyParts, setsJson: row.sets_json ?? row.setsJson, loggedAt: row.logged_at ?? row.loggedAt };
 }
 
+let localExerciseDataset = null;
+
+async function loadLocalExerciseDataset() {
+  if (localExerciseDataset) return localExerciseDataset;
+  const response = await fetch(EXERCISE_DATA_URL);
+  if (!response.ok) throw new Error('Exercise dataset unavailable');
+  const data = await response.json();
+  localExerciseDataset = Array.isArray(data) ? data : (data.exercises || []);
+  return localExerciseDataset;
+}
+
+async function getLocalExercise(exerciseId) {
+  const data = await loadLocalExerciseDataset();
+  return data.find(item => String(item.id) === String(exerciseId));
+}
+
+function buildStatsFromLogs(logs) {
+  const totalVolume = logs.reduce((sum, log) => sum + Number(log.totalVolumeKg || 0), 0);
+  const bodyPartFrequency = {};
+  logs.forEach(log => String(log.trainedBodyParts || '').split(',').map(p => p.trim().toLowerCase()).filter(Boolean).forEach(part => { bodyPartFrequency[part] = (bodyPartFrequency[part] || 0) + 1; }));
+  const allParts = ['chest', 'back', 'upper legs', 'shoulders', 'upper arms', 'waist', 'lower legs', 'cardio'];
+  const now = Date.now();
+  const muscleRecoveries = allParts.map(part => {
+    const lastLog = logs.find(log => String(log.trainedBodyParts || '').toLowerCase().split(',').map(p => p.trim()).includes(part));
+    const hours = lastLog?.loggedAt ? Math.max(0, Math.floor((now - new Date(lastLog.loggedAt).getTime()) / 3600000)) : null;
+    const recoveryPercentage = hours === null ? 100 : Math.min(100, hours < 18 ? Math.max(20, Math.floor(hours * 2.5)) : hours < 48 ? Math.floor(45 + (hours - 18) * 1.5) : Math.floor(90 + hours - 48));
+    return { bodyPart: part, recoveryPercentage, status: recoveryPercentage < 50 ? 'Đang mỏi cơ (Fatigued)' : recoveryPercentage < 90 ? 'Đang hồi phục (Recovering)' : 'Sẵn sàng tập (Ready)', color: recoveryPercentage < 50 ? '#EF4444' : recoveryPercentage < 90 ? '#F59E0B' : '#10B981', hoursSinceLastTrained: hours };
+  });
+  const weeklyVolumes = [3, 2, 1, 0].map(offset => {
+    const end = now - offset * 7 * 86400000;
+    const start = end - 7 * 86400000;
+    const weekLogs = logs.filter(log => { const time = new Date(log.loggedAt || 0).getTime(); return time > start && time <= end; });
+    return { weekLabel: `Tuần ${new Date(start).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`, volumeKg: weekLogs.reduce((sum, log) => sum + Number(log.totalVolumeKg || 0), 0), workoutCount: weekLogs.length };
+  });
+  return { totalWorkouts: logs.length, totalVolumeKg: Math.round(totalVolume * 10) / 10, currentStreakDays: Math.min(logs.length, 5), bestStreakDays: Math.min(logs.length, 5), bodyPartFrequency, weeklyVolumes, muscleRecoveries };
+}
+
 async function loadStoredWorkouts() {
   const sheetRes = await sheetRequest(null, { action: 'workouts', userId: currentUserId() });
   if (sheetRes?.success && Array.isArray(sheetRes.data)) return sheetRes.data.map(normalizeWorkout).sort((a, b) => new Date(b.loggedAt || 0) - new Date(a.loggedAt || 0));
-  try {
-    const response = await fetch(`${API_BASE}/workouts/history`);
-    return response.ok ? await response.json() : [];
-  } catch (error) { return []; }
+  return [];
 }
 
 // Initialize App on DOM Load
@@ -299,15 +334,8 @@ function setupEventListeners() {
 // -------------------------------------------------------------
 async function loadDashboardData() {
   try {
-    const res = await fetch(`${API_BASE}/workouts/stats`);
-    if (!res.ok) return;
-    const stats = await res.json();
     const storedLogs = await loadStoredWorkouts();
-    if (storedLogs.length) {
-      stats.totalWorkouts = storedLogs.length;
-      stats.totalVolumeKg = storedLogs.reduce((sum, log) => sum + Number(log.totalVolumeKg || 0), 0);
-      stats.currentStreakDays = Math.min(storedLogs.length, 5);
-    }
+    const stats = buildStatsFromLogs(storedLogs);
     
     document.getElementById('dash-total-workouts').textContent = stats.totalWorkouts || 0;
     document.getElementById('dash-total-volume').textContent = (stats.totalVolumeKg || 0).toLocaleString();
@@ -431,25 +459,17 @@ async function loadExercises(reset = false) {
   }
 
   try {
-    const params = new URLSearchParams();
-    params.append('page', appState.exercisePage);
-    params.append('size', appState.exercisePageSize);
-    if (appState.searchQuery && appState.searchQuery.trim()) {
-      params.append('search', appState.searchQuery.trim());
-    }
-    if (appState.selectedBodyPart && appState.selectedBodyPart.trim() && appState.selectedBodyPart !== 'all') {
-      params.append('bodyPart', appState.selectedBodyPart.trim());
-    }
-    if (appState.selectedEquipment && appState.selectedEquipment.trim() && appState.selectedEquipment !== 'all') {
-      params.append('equipment', appState.selectedEquipment.trim());
-    }
-
-    const res = await fetch(`${API_BASE}/exercises?${params.toString()}`);
-    if (!res.ok) throw new Error('API Error');
-    const data = await res.json();
-
-    const exercises = data.content || [];
-    const totalCount = data.totalElements || 0;
+    const allExercises = await loadLocalExerciseDataset();
+    const query = appState.searchQuery.trim().toLowerCase();
+    const bodyPart = appState.selectedBodyPart.trim().toLowerCase();
+    const equipment = appState.selectedEquipment.trim().toLowerCase();
+    const filtered = allExercises.filter(ex => {
+      const haystack = [ex.name, ex.target, ex.muscleGroup, ex.bodyPart].join(' ').toLowerCase();
+      return (!query || haystack.includes(query)) && (!bodyPart || bodyPart === 'all' || String(ex.bodyPart || '').toLowerCase().includes(bodyPart)) && (!equipment || equipment === 'all' || String(ex.equipment || '').toLowerCase().includes(equipment));
+    });
+    const start = appState.exercisePage * appState.exercisePageSize;
+    const exercises = filtered.slice(start, start + appState.exercisePageSize);
+    const totalCount = filtered.length;
 
     const countDisplay = document.getElementById('exercise-count-display');
     if (countDisplay) countDisplay.textContent = totalCount.toLocaleString();
@@ -461,7 +481,7 @@ async function loadExercises(reset = false) {
       appState.exercises.push(...exercises);
     }
 
-    appState.hasMoreExercises = !data.last;
+    appState.hasMoreExercises = start + exercises.length < totalCount;
 
     const btnLoadMore = document.getElementById('btn-load-more');
     if (btnLoadMore) {
@@ -547,9 +567,8 @@ let currentInstructionLang = 'vi';
 async function openExerciseDetailModal(exerciseId) {
   if (!requireAuth('Đăng nhập để xem hướng dẫn chi tiết, coaching tips và lưu bài tập yêu thích.')) return;
   try {
-    const res = await fetch(`${API_BASE}/exercises/${exerciseId}`);
-    if (!res.ok) return;
-    const ex = await res.json();
+    const ex = await getLocalExercise(exerciseId);
+    if (!ex) return;
     appState.activeModalExercise = ex;
 
     document.getElementById('modal-ex-title').textContent = ex.name;
@@ -802,11 +821,10 @@ async function quickStartWorkout() {
       exercises: []
     };
     
-    // Fetch exercise 0025 with full verified metadata from API
+    // Load the starter exercise from the local static dataset.
     try {
-      const res = await fetch(`${API_BASE}/exercises/0025`);
-      if (res.ok) {
-        const ex = await res.json();
+      const ex = await getLocalExercise('0025');
+      if (ex) {
         addExerciseToWorkoutSession(ex);
       } else {
         addExerciseToWorkoutSession({
@@ -845,8 +863,8 @@ async function startRoutineById(routineId) {
       routine = sheetRes?.data?.map(normalizeRoutine).find(item => String(item.id) === String(routineId));
     }
     if (!routine) {
-      const response = await fetch(`${API_BASE}/routines/${routineId}`);
-      routine = await response.json();
+      showToast('Không tìm thấy giáo án này trong Google Sheet.');
+      return;
     }
       appState.isWorkoutActive = true;
       appState.workoutSeconds = 0;
@@ -1130,7 +1148,7 @@ async function finishCurrentWorkout() {
       notes: payload.notes,
       sets_json: JSON.stringify(payload.exercises)
     }});
-    const res = sheetRes?.success ? { ok: true } : await fetch(`${API_BASE}/workouts/log`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const res = { ok: Boolean(sheetRes?.success) };
 
     if (res.ok) {
       // Confetti celebration
@@ -1217,8 +1235,7 @@ async function loadRoutines() {
     if (sheetRes?.success && Array.isArray(sheetRes.data)) {
       allRoutines = sheetRes.data.map(normalizeRoutine);
     } else {
-      const [presetsRes, customRes] = await Promise.all([fetch(`${API_BASE}/routines/presets`), fetch(`${API_BASE}/routines/custom`)]);
-      allRoutines = [...await presetsRes.json(), ...await customRes.json()];
+      allRoutines = [];
     }
     appState.routines = allRoutines;
     const presets = allRoutines.filter(r => r.isPreset === true || r.is_preset === true);
@@ -1349,7 +1366,7 @@ async function saveCustomRoutine() {
         exercises_json: JSON.stringify(payload.exercises)
       }
     });
-    const res = sheetRes?.success ? { ok: true } : await fetch(`${API_BASE}/routines`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const res = { ok: Boolean(sheetRes?.success) };
     if (res.ok) {
       closeModal('modal-create-routine');
       loadRoutines();
@@ -1390,9 +1407,9 @@ async function loadPickerExercises(query = '') {
   if (!container) return;
 
   try {
-    const res = await fetch(`${API_BASE}/exercises?size=15&search=${encodeURIComponent(query)}`);
-    const data = await res.json();
-    const list = data.content || [];
+    const allExercises = await loadLocalExerciseDataset();
+    const normalizedQuery = query.trim().toLowerCase();
+    const list = allExercises.filter(ex => !normalizedQuery || [ex.name, ex.target, ex.bodyPart, ex.equipment].join(' ').toLowerCase().includes(normalizedQuery)).slice(0, 15);
 
     container.innerHTML = list.map(ex => {
       const imgSrc = getExerciseImageUrl(ex.image);
@@ -1416,8 +1433,8 @@ async function loadPickerExercises(query = '') {
 
 async function selectPickerExercise(exerciseId) {
   try {
-    const res = await fetch(`${API_BASE}/exercises/${exerciseId}`);
-    const ex = await res.json();
+    const ex = await getLocalExercise(exerciseId);
+    if (!ex) return;
 
     if (appState.pickerTarget === 'liveWorkout') {
       addExerciseToWorkoutSession(ex);
@@ -1449,13 +1466,8 @@ async function selectPickerExercise(exerciseId) {
 // -------------------------------------------------------------
 async function loadAnalyticsData() {
   try {
-    const [statsRes, historyRes] = await Promise.all([
-      fetch(`${API_BASE}/workouts/stats`),
-      fetch(`${API_BASE}/workouts/history`)
-    ]);
-
-    const stats = await statsRes.json();
     const history = await loadStoredWorkouts();
+    const stats = buildStatsFromLogs(history);
 
     // Render detailed muscle recovery cards
     const grid = document.getElementById('muscle-recovery-detailed-grid');
@@ -1562,9 +1574,15 @@ async function calculate1RM() {
   const reps = parseInt(document.getElementById('calc-1rm-reps').value) || 8;
 
   try {
-    const res = await fetch(`${API_BASE}/calculator/1rm?weight=${weight}&reps=${reps}`);
-    if (!res.ok) return;
-    const data = await res.json();
+    if (weight <= 0 || reps <= 0) return;
+    const brzycki = weight * (36 / (37 - reps));
+    const epley = weight * (1 + reps / 30);
+    const lander = (100 * weight) / (101.3 - 2.67123 * reps);
+    const lombardi = weight * Math.pow(reps, 0.1);
+    const mayhew = (100 * weight) / (52.2 + 41.9 * Math.exp(-0.055 * reps));
+    const estimated1RM = Math.round(((brzycki + epley + lander + lombardi + mayhew) / 5) * 10) / 10;
+    const targets = [[1, 1], [2, .95], [3, .93], [4, .9], [5, .87], [6, .85], [8, .8], [10, .75], [12, .7], [15, .65]];
+    const data = { estimated1RM, repPercentages: targets.map(([targetReps, percentage]) => ({ reps: targetReps, percentage: percentage * 100, weightKg: Math.round(estimated1RM * percentage * 10) / 10 })) };
 
     document.getElementById('calc-1rm-value').textContent = `${data.estimated1RM} kg`;
 
@@ -1592,9 +1610,15 @@ async function calculateTDEE() {
   const goal = document.getElementById('calc-tdee-goal').value;
 
   try {
-    const res = await fetch(`${API_BASE}/calculator/tdee?gender=${gender}&age=${age}&weight=${weight}&height=${height}&activity=${activity}&goal=${goal}`);
-    if (!res.ok) return;
-    const data = await res.json();
+    const bmr = gender === 'female' ? (10 * weight + 6.25 * height - 5 * age - 161) : (10 * weight + 6.25 * height - 5 * age + 5);
+    const activityFactors = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very_active: 1.9 };
+    const maintenance = bmr * (activityFactors[activity] || 1.55);
+    const goalAdjustments = { cut: -.15, fat_loss: -.15, maintenance: 0, maintain: 0, hypertrophy: .1, bulk: .1, gain: .1 };
+    const targetCalories = Math.round(maintenance * (1 + (goalAdjustments[goal] || 0)));
+    const proteinGrams = Math.round(weight * (goal === 'fat_loss' || goal === 'cut' ? 2.2 : 2));
+    const fatGrams = Math.round((targetCalories * .25) / 9);
+    const carbGrams = Math.max(0, Math.round((targetCalories - proteinGrams * 4 - fatGrams * 9) / 4));
+    const data = { bmr: Math.round(bmr), targetCalories, proteinGrams, fatGrams, carbGrams };
 
     document.getElementById('res-bmr').textContent = `${data.bmr.toLocaleString()} kcal`;
     document.getElementById('res-target-cal').textContent = `${data.targetCalories.toLocaleString()} kcal`;
