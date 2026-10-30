@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bodygym-v3';
+const CACHE_NAME = 'bodygym-v8';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
@@ -20,4 +20,3 @@ self.addEventListener('fetch', (e) => {
     fetch(e.request).catch(() => caches.match(e.request))
   );
 });
-

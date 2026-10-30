@@ -3,6 +3,7 @@
  */
 
 const API_BASE = '/api';
+const SHEET_API_URL = 'https://script.google.com/macros/s/AKfycbyuFmLoeGJKgwjTfTUXevztfeewa-GcdUni7apHKmFdcqpvEy3-GvwO_cF4xQZ2HcVG/exec';
 
 // Safe SVG Placeholder (Dumbbell icon) to prevent image flickering
 const FALLBACK_PLACEHOLDER_SVG = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 24 24' fill='none' stroke='%23f97316' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6.5 6.5 11 11'/%3E%3Cpath d='m21 21-1-1'/%3E%3Cpath d='m3 3 1 1'/%3E%3Cpath d='m18 22 4-4'/%3E%3Cpath d='m2 6 4-4'/%3E%3Cpath d='m3 10 7-7'/%3E%3Cpath d='m14 21 7-7'/%3E%3C/svg%3E";
@@ -28,6 +29,7 @@ let appState = {
   searchQuery: '',
   selectedBodyPart: '',
   selectedEquipment: '',
+  routines: [],
   
   // Live Workout Session
   isWorkoutActive: false,
@@ -52,21 +54,181 @@ let appState = {
   volumeChartInstance: null
 };
 
+const AUTH_SESSION_KEY = 'bodygym_auth_session';
+const INTRO_SEEN_KEY = 'bodygym_intro_seen';
+const ROUTES = ['dashboard', 'exercises', 'routines', 'workout', 'analytics', 'calculators'];
+
+async function sheetRequest(payload = null, params = {}) {
+  try {
+    let response;
+    if (payload) {
+      response = await fetch(SHEET_API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify(payload)
+      });
+    } else {
+      const query = new URLSearchParams(params).toString();
+      response = await fetch(`${SHEET_API_URL}${query ? `?${query}` : ''}`);
+    }
+    if (!response.ok) return null;
+    return await response.json();
+  } catch (error) {
+    console.warn('[BodyGym Sheet] request failed:', error.message);
+    return null;
+  }
+}
+
+function currentUserId() {
+  return getAuthSession()?.id || '__guest__';
+}
+
+function normalizeRoutine(row) {
+  if (!row) return row;
+  return { ...row, id: row.id, userId: row.user_id ?? row.userId, targetFocus: row.target_focus ?? row.targetFocus, estimatedMinutes: Number(row.estimated_minutes ?? row.estimatedMinutes ?? 60), isPreset: row.is_preset ?? row.isPreset, exercisesJson: row.exercises_json ?? row.exercisesJson ?? '[]', createdAt: row.created_at ?? row.createdAt };
+}
+
+function normalizeWorkout(row) {
+  if (!row) return row;
+  return { ...row, routineName: row.routine_name ?? row.routineName, startedAt: row.started_at ?? row.startedAt, completedAt: row.completed_at ?? row.completedAt, durationSeconds: Number(row.duration_seconds ?? row.durationSeconds ?? 0), totalVolumeKg: Number(row.total_volume_kg ?? row.totalVolumeKg ?? 0), totalSets: Number(row.total_sets ?? row.totalSets ?? 0), totalReps: Number(row.total_reps ?? row.totalReps ?? 0), prCount: Number(row.pr_count ?? row.prCount ?? 0), trainedBodyParts: row.trained_body_parts ?? row.trainedBodyParts, setsJson: row.sets_json ?? row.setsJson, loggedAt: row.logged_at ?? row.loggedAt };
+}
+
+async function loadStoredWorkouts() {
+  const sheetRes = await sheetRequest(null, { action: 'workouts', userId: currentUserId() });
+  if (sheetRes?.success && Array.isArray(sheetRes.data)) return sheetRes.data.map(normalizeWorkout).sort((a, b) => new Date(b.loggedAt || 0) - new Date(a.loggedAt || 0));
+  try {
+    const response = await fetch(`${API_BASE}/workouts/history`);
+    return response.ok ? await response.json() : [];
+  } catch (error) { return []; }
+}
+
 // Initialize App on DOM Load
 document.addEventListener('DOMContentLoaded', () => {
   initIcons();
+  initAuth();
+});
+
+function initAuth() {
+  const loginForm = document.getElementById('auth-login-form');
+  const signupForm = document.getElementById('auth-signup-form');
+  if (loginForm) loginForm.addEventListener('submit', handleLogin);
+  if (signupForm) signupForm.addEventListener('submit', handleSignup);
+  window.addEventListener('hashchange', handleRouteChange);
+
+  showAppShell(getAuthSession());
+  if (localStorage.getItem(INTRO_SEEN_KEY) !== 'true') {
+    showAuthView('welcome');
+  } else {
+    handleRouteChange();
+  }
+}
+
+function getAuthSession() {
+  try { return JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || 'null'); }
+  catch (e) { return null; }
+}
+
+function showAuthView(view) {
+  ['welcome', 'login', 'signup'].forEach(name => {
+    const el = document.getElementById(`auth-${name}-view`);
+    if (el) el.hidden = name !== view;
+  });
+  document.getElementById('auth-shell')?.removeAttribute('hidden');
+  initIcons();
+}
+
+function enterExperience() {
+  localStorage.setItem(INTRO_SEEN_KEY, 'true');
+  document.getElementById('auth-shell')?.setAttribute('hidden', '');
+  showAppShell(getAuthSession());
+  if (!window.location.hash || !ROUTES.includes(window.location.hash.replace('#', ''))) {
+    history.replaceState(null, '', '#dashboard');
+  }
+  handleRouteChange();
+}
+
+function requestLogin(message = 'Đăng nhập để lưu hành trình và sử dụng tính năng này.') {
+  const lead = document.querySelector('#auth-login-view .auth-lead');
+  if (lead) lead.textContent = message;
+  showAuthView('login');
+  return false;
+}
+
+function requireAuth(message) {
+  return getAuthSession() ? true : requestLogin(message);
+}
+
+function setAuthError(id, message) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = message;
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  if (password.length < 6) return setAuthError('auth-error', 'Mật khẩu cần có ít nhất 6 ký tự.');
+  const result = await sheetRequest({ action: 'login', email, password });
+  if (result?.success && result.data) return completeLogin(result.data);
+  const saved = JSON.parse(localStorage.getItem('bodygym_demo_user') || 'null');
+  if (saved && (saved.email !== email || saved.password !== password)) return setAuthError('auth-error', 'Email hoặc mật khẩu chưa đúng.');
+  if (!saved && result) return setAuthError('auth-error', result.error || 'Email hoặc mật khẩu chưa đúng.');
+  completeLogin({ name: saved?.name || email.split('@')[0], email });
+}
+
+async function handleSignup(event) {
+  event.preventDefault();
+  const name = document.getElementById('signup-name').value.trim();
+  const email = document.getElementById('signup-email').value.trim();
+  const password = document.getElementById('signup-password').value;
+  if (password.length < 6) return setAuthError('signup-error', 'Mật khẩu cần có ít nhất 6 ký tự.');
+  const result = await sheetRequest({ action: 'register', name, email, password });
+  if (result?.success && result.data) return completeLogin(result.data);
+  if (result && !result.success) return setAuthError('signup-error', result.error || 'Không thể tạo tài khoản.');
+  localStorage.setItem('bodygym_demo_user', JSON.stringify({ name, email, password }));
+  completeLogin({ name, email });
+}
+
+function completeLogin(session) {
+  localStorage.setItem(INTRO_SEEN_KEY, 'true');
+  localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+  showAppShell(session);
+  handleRouteChange();
+}
+
+function showAppShell(session) {
+  document.getElementById('auth-shell')?.setAttribute('hidden', '');
+  document.getElementById('app-shell')?.removeAttribute('hidden');
+  document.body.classList.remove('auth-mode');
+  const nameEl = document.getElementById('session-user-name');
+  const sessionButton = document.querySelector('.user-session-button');
+  if (nameEl) nameEl.textContent = session?.name || 'Đăng nhập';
+  if (sessionButton) {
+    sessionButton.title = session ? 'Đăng xuất' : 'Đăng nhập';
+    sessionButton.onclick = session ? logoutUser : () => requestLogin('Đăng nhập để lưu giáo án và thành tích của anh.');
+  }
   setupEventListeners();
   loadDashboardData();
   loadExercises(true);
   loadRoutines();
   calculate1RM();
   calculateTDEE();
-  
-  // Register Service Worker for PWA
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration error', err));
-  }
-});
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration error', err));
+  initIcons();
+}
+
+function logoutUser() {
+  localStorage.removeItem(AUTH_SESSION_KEY);
+  localStorage.removeItem(INTRO_SEEN_KEY);
+  showAppShell(null);
+  showAuthView('welcome');
+}
+
+function handleRouteChange() {
+  if (!getAuthSession()) return;
+  const route = window.location.hash.replace('#', '') || 'dashboard';
+  switchTab(ROUTES.includes(route) ? route : 'dashboard', false);
+}
 
 function initIcons() {
   if (window.lucide) {
@@ -77,8 +239,11 @@ function initIcons() {
 // -------------------------------------------------------------
 // TAB NAVIGATION
 // -------------------------------------------------------------
-function switchTab(tabId) {
+function switchTab(tabId, updateHash = true) {
   appState.currentTab = tabId;
+  if (updateHash && ROUTES.includes(tabId) && window.location.hash !== `#${tabId}`) {
+    history.pushState(null, '', `#${tabId}`);
+  }
   
   // Update Tab Panes
   document.querySelectorAll('.tab-pane').forEach(pane => {
@@ -137,6 +302,12 @@ async function loadDashboardData() {
     const res = await fetch(`${API_BASE}/workouts/stats`);
     if (!res.ok) return;
     const stats = await res.json();
+    const storedLogs = await loadStoredWorkouts();
+    if (storedLogs.length) {
+      stats.totalWorkouts = storedLogs.length;
+      stats.totalVolumeKg = storedLogs.reduce((sum, log) => sum + Number(log.totalVolumeKg || 0), 0);
+      stats.currentStreakDays = Math.min(storedLogs.length, 5);
+    }
     
     document.getElementById('dash-total-workouts').textContent = stats.totalWorkouts || 0;
     document.getElementById('dash-total-volume').textContent = (stats.totalVolumeKg || 0).toLocaleString();
@@ -167,9 +338,7 @@ async function loadDashboardData() {
 
 async function loadRecentWorkouts() {
   try {
-    const res = await fetch(`${API_BASE}/workouts/history`);
-    if (!res.ok) return;
-    const logs = await res.json();
+    const logs = await loadStoredWorkouts();
     
     const container = document.getElementById('dash-recent-workouts');
     if (!container) return;
@@ -376,6 +545,7 @@ function createExerciseCardElement(ex) {
 let currentInstructionLang = 'vi';
 
 async function openExerciseDetailModal(exerciseId) {
+  if (!requireAuth('Đăng nhập để xem hướng dẫn chi tiết, coaching tips và lưu bài tập yêu thích.')) return;
   try {
     const res = await fetch(`${API_BASE}/exercises/${exerciseId}`);
     if (!res.ok) return;
@@ -622,6 +792,7 @@ function addCurrentModalExerciseToWorkout() {
 // LIVE WORKOUT PLAYER (HEVY / STRONG STYLE)
 // -------------------------------------------------------------
 async function quickStartWorkout() {
+  if (!requireAuth('Đăng nhập để bắt đầu ghi log buổi tập và lưu lại thành tích của anh.')) return;
   if (!appState.isWorkoutActive) {
     appState.isWorkoutActive = true;
     appState.workoutSeconds = 0;
@@ -665,10 +836,18 @@ async function quickStartWorkout() {
   switchTab('workout');
 }
 
-function startRoutineById(routineId) {
-  fetch(`${API_BASE}/routines/${routineId}`)
-    .then(r => r.json())
-    .then(routine => {
+async function startRoutineById(routineId) {
+  if (!requireAuth('Đăng nhập để kích hoạt giáo án và theo dõi tiến độ của anh.')) return;
+  try {
+    let routine = appState.routines.find(item => String(item.id) === String(routineId));
+    if (!routine) {
+      const sheetRes = await sheetRequest(null, { action: 'routines', userId: currentUserId() });
+      routine = sheetRes?.data?.map(normalizeRoutine).find(item => String(item.id) === String(routineId));
+    }
+    if (!routine) {
+      const response = await fetch(`${API_BASE}/routines/${routineId}`);
+      routine = await response.json();
+    }
       appState.isWorkoutActive = true;
       appState.workoutSeconds = 0;
       appState.workoutStartTime = new Date();
@@ -678,7 +857,7 @@ function startRoutineById(routineId) {
       };
 
       try {
-        const exList = JSON.parse(routine.exercisesJson || '[]');
+        const exList = JSON.parse(routine.exercisesJson || routine.exercises_json || '[]');
         exList.forEach(item => {
           const sets = [];
           const numSets = item.defaultSets || 3;
@@ -711,8 +890,7 @@ function startRoutineById(routineId) {
       renderLiveWorkout();
       switchTab('workout');
       showToast(`Bắt đầu giáo án "${routine.name}"! 🔥`);
-    })
-    .catch(e => console.error(e));
+  } catch (e) { console.error(e); }
 }
 
 function startWorkoutTimer() {
@@ -941,11 +1119,18 @@ async function finishCurrentWorkout() {
   };
 
   try {
-    const res = await fetch(`${API_BASE}/workouts/log`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    const sheetRes = await sheetRequest({ action: 'log_workout', userId: currentUserId(), workout: {
+      routine_name: payload.routineName,
+      duration_seconds: payload.durationSeconds,
+      total_volume_kg: payload.totalVolumeKg,
+      total_sets: payload.totalSets,
+      total_reps: payload.totalReps,
+      pr_count: payload.prCount,
+      trained_body_parts: payload.trainedBodyParts.join(','),
+      notes: payload.notes,
+      sets_json: JSON.stringify(payload.exercises)
+    }});
+    const res = sheetRes?.success ? { ok: true } : await fetch(`${API_BASE}/workouts/log`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
 
     if (res.ok) {
       // Confetti celebration
@@ -1027,13 +1212,17 @@ function playAlarmChime() {
 // -------------------------------------------------------------
 async function loadRoutines() {
   try {
-    const [presetsRes, customRes] = await Promise.all([
-      fetch(`${API_BASE}/routines/presets`),
-      fetch(`${API_BASE}/routines/custom`)
-    ]);
-
-    const presets = await presetsRes.json();
-    const custom = await customRes.json();
+    const sheetRes = await sheetRequest(null, { action: 'routines', userId: currentUserId() });
+    let allRoutines;
+    if (sheetRes?.success && Array.isArray(sheetRes.data)) {
+      allRoutines = sheetRes.data.map(normalizeRoutine);
+    } else {
+      const [presetsRes, customRes] = await Promise.all([fetch(`${API_BASE}/routines/presets`), fetch(`${API_BASE}/routines/custom`)]);
+      allRoutines = [...await presetsRes.json(), ...await customRes.json()];
+    }
+    appState.routines = allRoutines;
+    const presets = allRoutines.filter(r => r.isPreset === true || r.is_preset === true);
+    const custom = allRoutines.filter(r => !(r.isPreset === true || r.is_preset === true));
 
     const presetsGrid = document.getElementById('preset-routines-grid');
     if (presetsGrid) {
@@ -1062,7 +1251,7 @@ async function loadRoutines() {
 function renderRoutineCard(routine, isPreset) {
   let exCount = 4;
   try {
-    const list = JSON.parse(routine.exercisesJson || '[]');
+    const list = JSON.parse(routine.exercisesJson || routine.exercises_json || '[]');
     exCount = list.length;
   } catch (e) {}
 
@@ -1076,10 +1265,10 @@ function renderRoutineCard(routine, isPreset) {
         ${routine.description || 'Chương trình tập luyện tối ưu cho cơ thể.'}
       </p>
       <div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 14px; display: flex; gap: 12px;">
-        <span>⏱️ ${routine.estimatedMinutes || 60} phút</span>
+        <span>⏱️ ${routine.estimatedMinutes || routine.estimated_minutes || 60} phút</span>
         <span>💪 ${exCount} bài tập</span>
       </div>
-      <button class="btn-primary" style="width: 100%; padding: 10px;" onclick="startRoutineById(${routine.id})">
+      <button class="btn-primary" style="width: 100%; padding: 10px;" onclick="startRoutineById('${routine.id}')">
         <i data-lucide="play" style="width: 16px; height: 16px;"></i> Bắt Đầu Giáo Án Này
       </button>
     </div>
@@ -1087,6 +1276,7 @@ function renderRoutineCard(routine, isPreset) {
 }
 
 function openCreateRoutineModal() {
+  if (!requireAuth('Đăng nhập để tạo và lưu giáo án cá nhân của anh.')) return;
   appState.newRoutineExercises = [];
   document.getElementById('new-routine-name').value = '';
   document.getElementById('new-routine-desc').value = '';
@@ -1148,11 +1338,18 @@ async function saveCustomRoutine() {
   };
 
   try {
-    const res = await fetch(`${API_BASE}/routines`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+    const sheetRes = await sheetRequest({
+      action: 'create_routine',
+      userId: currentUserId(),
+      routine: {
+        name: payload.name,
+        description: payload.description,
+        level: payload.level,
+        estimated_minutes: payload.estimatedMinutes,
+        exercises_json: JSON.stringify(payload.exercises)
+      }
     });
+    const res = sheetRes?.success ? { ok: true } : await fetch(`${API_BASE}/routines`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (res.ok) {
       closeModal('modal-create-routine');
       loadRoutines();
@@ -1167,6 +1364,7 @@ async function saveCustomRoutine() {
 // EXERCISE PICKER MODAL
 // -------------------------------------------------------------
 function openAddExerciseToWorkoutModal() {
+  if (!requireAuth('Đăng nhập để thêm bài tập vào buổi tập và lưu kết quả.')) return;
   appState.pickerTarget = 'liveWorkout';
   openModal('modal-exercise-picker');
   loadPickerExercises('');
@@ -1257,7 +1455,7 @@ async function loadAnalyticsData() {
     ]);
 
     const stats = await statsRes.json();
-    const history = await historyRes.json();
+    const history = await loadStoredWorkouts();
 
     // Render detailed muscle recovery cards
     const grid = document.getElementById('muscle-recovery-detailed-grid');

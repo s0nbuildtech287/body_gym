@@ -11,7 +11,7 @@
   <link rel="apple-touch-icon" href="/favicon.svg">
   
   <!-- CSS -->
-  <link rel="stylesheet" href="/css/styles.css?v=3">
+  <link rel="stylesheet" href="/css/styles.css?v=7">
   
   <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
@@ -21,6 +21,67 @@
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 </head>
 <body>
+
+  <!-- AUTH / ONBOARDING GATE -->
+  <div id="auth-shell" class="auth-shell" hidden>
+    <div class="auth-visual-panel">
+      <div class="auth-brand-lockup">
+        <div class="brand-logo-icon"><i data-lucide="dumbbell"></i></div>
+        <div><div class="brand-text">BODYGYM</div><span class="brand-tag">PRO ATHLETIC</span></div>
+      </div>
+      <div class="auth-visual-copy">
+        <span class="auth-eyebrow"><i data-lucide="sparkles"></i> ELITE TRAINING OS</span>
+        <h1>Biến mỗi buổi tập thành một bước tiến.</h1>
+        <p>Khám phá bài tập, xây giáo án riêng và theo dõi hành trình thể hình theo cách khoa học hơn.</p>
+        <div class="auth-proof-row"><span><b>1,324</b> bài tập</span><span><b>Live</b> workout tracker</span><span><b>Smart</b> recovery</span></div>
+      </div>
+      <div class="auth-3d-stage" aria-hidden="true">
+        <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+        <div class="floating-dumbbell"><span></span><b></b><span></span></div>
+        <div class="stage-glow"></div>
+      </div>
+      <div class="auth-quote">“Consistency beats intensity when intensity is inconsistent.”</div>
+    </div>
+    <div class="auth-form-panel">
+      <section id="auth-welcome-view" class="auth-view">
+        <span class="auth-eyebrow"><i data-lucide="zap"></i> SẴN SÀNG BỨT PHÁ?</span>
+        <h2>Chào mừng đến với BodyGym</h2>
+        <p class="auth-lead">Một không gian tập luyện được thiết kế để giúp bạn bắt đầu dễ dàng và duy trì động lực lâu hơn.</p>
+        <div class="welcome-benefits">
+          <div><i data-lucide="library"></i><span><b>Khám phá đúng bài</b><small>GIF kỹ thuật và hướng dẫn rõ ràng.</small></span></div>
+          <div><i data-lucide="chart-no-axes-combined"></i><span><b>Nhìn thấy tiến bộ</b><small>Volume, streak và recovery trong một nơi.</small></span></div>
+          <div><i data-lucide="shield-check"></i><span><b>Hành trình của riêng bạn</b><small>Lưu giáo án và lịch sử tập cá nhân.</small></span></div>
+        </div>
+        <button class="btn-primary auth-main-button" onclick="enterExperience()"><i data-lucide="arrow-right"></i> Khám phá BodyGym ngay</button>
+        <button class="auth-text-button" onclick="showAuthView('login')">Tôi đã có tài khoản · Đăng nhập</button>
+        <button class="auth-text-button auth-skip-button" onclick="enterExperience()">Xem trước toàn bộ tính năng, không cần đăng nhập</button>
+      </section>
+      <section id="auth-login-view" class="auth-view" hidden>
+        <button class="auth-back-button" onclick="showAuthView('welcome')"><i data-lucide="arrow-left"></i> Quay lại giới thiệu</button>
+        <span class="auth-eyebrow"><i data-lucide="log-in"></i> YOUR TRAINING SPACE</span>
+        <h2>Đăng nhập để bắt đầu</h2><p class="auth-lead">Lưu lại giáo án, buổi tập và tiến bộ của bạn ngay từ hôm nay.</p>
+        <form id="auth-login-form" class="auth-form">
+          <label class="form-label" for="auth-email">Email</label><input id="auth-email" class="form-control" type="email" placeholder="ban@example.com" required>
+          <label class="form-label" for="auth-password">Mật khẩu</label><input id="auth-password" class="form-control" type="password" placeholder="Tối thiểu 6 ký tự" minlength="6" required>
+          <div id="auth-error" class="auth-error" role="alert"></div><button class="btn-primary auth-main-button" type="submit"><i data-lucide="arrow-right"></i> Vào BodyGym</button>
+        </form>
+        <p class="auth-switch-copy">Chưa có tài khoản? <button class="auth-link-button" onclick="showAuthView('signup')">Tạo tài khoản demo</button></p>
+      </section>
+      <section id="auth-signup-view" class="auth-view" hidden>
+        <button class="auth-back-button" onclick="showAuthView('login')"><i data-lucide="arrow-left"></i> Quay lại đăng nhập</button>
+        <span class="auth-eyebrow"><i data-lucide="user-plus"></i> BUILD YOUR BASE</span>
+        <h2>Tạo tài khoản miễn phí</h2><p class="auth-lead">Bắt đầu với một hồ sơ đơn giản. Anh có thể cập nhật mục tiêu sau khi vào app.</p>
+        <form id="auth-signup-form" class="auth-form">
+          <label class="form-label" for="signup-name">Tên của bạn</label><input id="signup-name" class="form-control" type="text" placeholder="Nguyễn Văn A" required>
+          <label class="form-label" for="signup-email">Email</label><input id="signup-email" class="form-control" type="email" placeholder="ban@example.com" required>
+          <label class="form-label" for="signup-password">Mật khẩu</label><input id="signup-password" class="form-control" type="password" placeholder="Tối thiểu 6 ký tự" minlength="6" required>
+          <div id="signup-error" class="auth-error" role="alert"></div><button class="btn-primary auth-main-button" type="submit"><i data-lucide="user-round-plus"></i> Tạo tài khoản & vào app</button>
+        </form>
+      </section>
+    </div>
+  </div>
+
+  <div id="app-shell">
 
   <!-- DESKTOP SIDEBAR -->
   <aside class="desktop-sidebar">
@@ -83,6 +144,7 @@
     </div>
 
     <div class="navbar-actions">
+      <button class="user-session-button" onclick="logoutUser()" title="Đăng xuất"><i data-lucide="user-round" style="width: 16px; height: 16px;"></i><span id="session-user-name">Athlete</span></button>
       <button class="btn-start-workout-nav" onclick="quickStartWorkout()">
         <i data-lucide="play" style="width: 16px; height: 16px;"></i>
         <span>Tập Ngay</span>
@@ -112,6 +174,11 @@
           <button class="btn-secondary" onclick="switchTab('exercises')">
             <i data-lucide="search"></i> Khám Phá Bài Tập
           </button>
+        </div>
+        <div class="hero-visual-3d" aria-hidden="true">
+          <div class="hero-orbit hero-orbit-a"></div><div class="hero-orbit hero-orbit-b"></div>
+          <div class="hero-dumbbell"><span></span><b></b><span></span></div>
+          <div class="hero-particle particle-a"></div><div class="hero-particle particle-b"></div><div class="hero-particle particle-c"></div>
         </div>
       </div>
 
@@ -783,7 +850,9 @@
   <!-- TOAST CONTAINER -->
   <div id="toast-container" class="toast-container"></div>
 
+  </div><!-- /#app-shell -->
+
   <!-- JS -->
-  <script src="/js/app.js?v=3"></script>
+    <script src="/js/app.js?v=8"></script>
 </body>
 </html>
