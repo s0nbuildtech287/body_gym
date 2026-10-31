@@ -13,7 +13,7 @@ const asset = (path) => path ? `/media/${String(path).replace(/^\/+/, '')}` : ''
 export default function App() {
   const [user, setUser] = useState(getSession);
   const [tab, setTab] = useState(location.hash.slice(1) || 'dashboard');
-  const [intro, setIntro] = useState(localStorage.getItem('bodygym_intro_seen') !== 'true');
+  const [intro, setIntro] = useState(() => !getSession());
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState('login');
   const [exercises, setExercises] = useState([]);
@@ -40,14 +40,14 @@ export default function App() {
   useEffect(() => { const onHash = () => setTab(location.hash.slice(1) || 'dashboard'); addEventListener('hashchange', onHash); return () => removeEventListener('hashchange', onHash); }, []);
   const go = (next) => { setTab(next); history.pushState(null, '', `#${next}`); };
   const requireAuth = (message) => { if (user) return true; setAuthMode('login'); setAuthOpen(true); setError(message); return false; };
-  const logout = () => { localStorage.removeItem('bodygym_auth_session'); localStorage.removeItem('bodygym_intro_seen'); setUser(null); setIntro(true); };
-  const finishIntro = () => { localStorage.setItem('bodygym_intro_seen', 'true'); setIntro(false); setError(''); };
+  const logout = () => { localStorage.removeItem('bodygym_auth_session'); setUser(null); setIntro(true); };
+  const finishIntro = () => { setIntro(false); setError(''); };
 
   return <div className="app-root">
     <aside className="sidebar"><Brand /><nav>{TABS.map(([id, label, Icon]) => <button key={id} className={tab === id ? 'active' : ''} onClick={() => go(id)}><Icon size={18}/>{label}</button>)}</nav><div className="side-status"><span/> Apps Script online</div></aside>
     <header className="topbar"><button className="brand-mobile" onClick={() => go('dashboard')}><Dumbbell size={20}/> BODYGYM</button><div className="top-actions">{user ? <button className="session" onClick={logout}><UserPlus size={16}/>{user.name}<LogOut size={14}/></button> : <button className="session" onClick={() => { setAuthMode('login'); setAuthOpen(true); }}><LogIn size={16}/> Đăng nhập</button>}<button className="primary small" onClick={() => { if (requireAuth('Đăng nhập để bắt đầu và lưu buổi tập.')) go('workout'); }}><Play size={16}/> Tập ngay</button></div></header>
     <main className="content">{error && <div className="notice">{error}<button onClick={() => setError('')}><X size={15}/></button></div>}{loading ? <div className="loading">Đang khởi động BodyGym…</div> : <>{tab === 'dashboard' && <Dashboard workouts={workouts} go={go}/>} {tab === 'exercises' && <Exercises exercises={exercises} requireAuth={requireAuth} onSelect={setSelectedExercise}/>} {tab === 'routines' && <Routines routines={routines} user={user} requireAuth={requireAuth} onRefresh={refreshData}/>} {tab === 'workout' && <Workout user={user} requireAuth={requireAuth} onSaved={refreshData}/>} {tab === 'analytics' && <Analytics workouts={workouts}/>} {tab === 'calculators' && <Calculators/>}</>}</main>
-    {intro && <Welcome onEnter={finishIntro} onLogin={() => { finishIntro(); setAuthMode('login'); setAuthOpen(true); }}/>} {authOpen && <Auth mode={authMode} setMode={setAuthMode} onClose={() => { setAuthOpen(false); setError(''); }} onLogin={(next) => { setUser(next); setAuthOpen(false); setError(''); localStorage.setItem('bodygym_intro_seen', 'true'); }}/>} {selectedExercise && <ExerciseModal exercise={selectedExercise} onClose={() => setSelectedExercise(null)}/>} 
+    {intro && <Welcome onEnter={finishIntro} onLogin={() => { finishIntro(); setAuthMode('login'); setAuthOpen(true); }}/>} {authOpen && <Auth mode={authMode} setMode={setAuthMode} onClose={() => { setAuthOpen(false); setError(''); }} onLogin={(next) => { setUser(next); setAuthOpen(false); setError(''); }}/>} {selectedExercise && <ExerciseModal exercise={selectedExercise} onClose={() => setSelectedExercise(null)}/>} 
   </div>;
 }
 
