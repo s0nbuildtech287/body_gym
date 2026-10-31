@@ -68,7 +68,7 @@ BodyGym/
 │   │   ├── App.jsx
 │   │   ├── main.jsx
 │   │   ├── styles.css
-│   │   └── api/sheetClient.js
+│   │   └── api/cloudClient.js
 │   ├── public/data/exercises.json
 │   ├── public/media/
 │   ├── package.json
