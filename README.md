@@ -2,7 +2,7 @@
 
 BodyGym là nền tảng hỗ trợ tập luyện và theo dõi tiến độ thể hình. Ứng dụng giúp người dùng khám phá bài tập, xem hướng dẫn kỹ thuật, lựa chọn giáo án, ghi nhận buổi tập và theo dõi volume theo thời gian.
 
-Phiên bản hiện tại được định hướng theo mô hình frontend React deploy độc lập trên Vercel, còn dữ liệu người dùng được lưu tạm trên Google Sheets thông qua Google Apps Script.
+Phiên bản hiện tại được định hướng theo mô hình frontend React deploy độc lập, kết nối tới một lớp dịch vụ dữ liệu cloud cho tài khoản, giáo án và lịch sử tập luyện.
 
 ## ✨ Điểm nổi bật
 
@@ -22,8 +22,8 @@ Phiên bản hiện tại được định hướng theo mô hình frontend Reac
 ```text
 React + Vite frontend
         │
-        ├── Google Apps Script
-        │      └── Google Sheets: users, profiles, routines, workout_logs
+        ├── Cloud data service
+        │      └── Users, profiles, routines, workout logs
         │
         └── Static assets
                ├── exercises.json
@@ -44,10 +44,10 @@ Java Spring Boot cũ vẫn được giữ trong repository để chạy local/fa
 - Lucide React Icons
 - CSS responsive thuần
 
-### Dữ liệu và backend tạm thời
+### Dữ liệu và dịch vụ cloud
 
-- Google Apps Script Web App
-- Google Sheets
+- REST-style cloud data service
+- Tài khoản, profile, routines và workout logs
 - SHA-256 hash cho mật khẩu trước khi lưu
 - Local static JSON cho danh mục bài tập
 
@@ -74,7 +74,6 @@ BodyGym/
 │   ├── package.json
 │   └── vite.config.js
 │
-├── google-apps-script/          # Code.gs và hướng dẫn Apps Script
 ├── frontend/                    # Bản frontend HTML/CSS/JS legacy
 ├── bodygym-backend/             # Spring Boot backend legacy/local
 └── exercises-dataset/           # Dataset gốc bài tập
@@ -105,30 +104,11 @@ Build Command: npm run build
 Output Directory: dist
 ```
 
-Frontend React đang dùng Apps Script Web App tại file:
-
-```text
-frontend-react/src/api/sheetClient.js
-```
-
-## 📊 Google Sheets
-
-Apps Script tự tạo các sheet sau khi chạy `setupSheets()`:
-
-- `users`
-- `profiles`
-- `routines`
-- `workout_logs`
-
-Hướng dẫn triển khai chi tiết nằm trong:
-
-```text
-google-apps-script/README.md
-```
+Frontend React kết nối tới lớp dịch vụ dữ liệu cloud thông qua module API riêng trong `src/api/`.
 
 ## ⚠️ Ghi chú
 
-Google Sheets + Apps Script phù hợp cho giai đoạn prototype, demo và MVP nhỏ. Khi lượng người dùng tăng, nên chuyển dữ liệu sang PostgreSQL hoặc một database có authentication, transaction và phân quyền đầy đủ.
+Kiến trúc dữ liệu hiện tại phù hợp cho prototype, demo và MVP nhỏ. Khi lượng người dùng tăng, nên chuyển sang PostgreSQL hoặc một database có authentication, transaction và phân quyền đầy đủ.
 
 ---
 
